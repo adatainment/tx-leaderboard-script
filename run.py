@@ -33,6 +33,14 @@ STRICA_REGISTRY_URL = (
     "https://api.github.com/repos/StricaHQ/cardano-contracts-registry/contents/"
     "projects?ref=master"
 )
+ETERNL_SCRIPT_INDEX_URL = (
+    "https://raw.githubusercontent.com/Tastenkunst/eternl-cardano-registry/main/"
+    "registry/scripts/script-index.json"
+)
+ETERNL_PROJECTS_REGISTRY_URL = (
+    "https://api.github.com/repos/Tastenkunst/eternl-cardano-registry/contents/"
+    "registry/projects?ref=main"
+)
 
 ALIASES = {"jpgstore": "jpg.store"}
 MIN_TX_THRESHOLD = 100
@@ -136,10 +144,17 @@ def fetch_dapps_registries():
         strica_registry, strica_registry_names = extract_registry(
             STRICA_REGISTRY_URL, "STRICA"
         )
+        eternl_registry, eternl_registry_names = extract_eternl_registry()
 
-        registries = merge_dicts_of_lists(crfa_registry, strica_registry)
+        registries = merge_dicts_of_lists(
+            crfa_registry, strica_registry, eternl_registry
+        )
         names = merge_dicts_of_project_names(
-            {"CRFA": crfa_registry_names, "STRICA": strica_registry_names},
+            {
+                "CRFA": crfa_registry_names,
+                "STRICA": strica_registry_names,
+                "ETERNL": eternl_registry_names,
+            },
             preferred_registry="STRICA",
         )
 
@@ -151,7 +166,7 @@ def fetch_dapps_registries():
 
 def merge_dicts_of_project_names(
     registries: dict[str, dict[str, str]],
-    preferred_registry: Literal["CRFA", "STRICA"],
+    preferred_registry: Literal["CRFA", "STRICA", "ETERNL"],
 ):
     merged = {}
 
@@ -221,6 +236,72 @@ def extract_registry(registry_url, registry_id: Literal["CRFA", "STRICA"]):
         return registry, registry_names
     except Exception as e:
         print("ERROR:", e)
+        raise
+
+
+def extract_eternl_registry():
+    try:
+        registry = defaultdict(set)
+        registry_names = defaultdict()
+
+        scripts_r = requests.get(ETERNL_SCRIPT_INDEX_URL, timeout=30)
+        scripts_r.raise_for_status()
+        scripts_data = scripts_r.json()
+
+        scripts = scripts_data.get("scripts", {})
+        if not isinstance(scripts, dict):
+            return {}, {}
+
+        for script_hash, info in scripts.items():
+            if not isinstance(script_hash, str) or not isinstance(info, dict):
+                continue
+
+            project_id = info.get("projectId")
+            if not isinstance(project_id, str) or not project_id.strip():
+                continue
+
+            normalized_project_name = canonical_project_name(project_id)
+            registry[normalized_project_name].add(script_hash)
+            registry_names[normalized_project_name] = project_id
+
+        projects_r = requests.get(ETERNL_PROJECTS_REGISTRY_URL, timeout=30)
+        projects_r.raise_for_status()
+        projects_index = projects_r.json()
+
+        if isinstance(projects_index, list):
+            for project_entry in projects_index:
+                if not isinstance(project_entry, dict):
+                    continue
+
+                file_name = project_entry.get("name")
+                download_url = project_entry.get("download_url")
+
+                if (
+                    not isinstance(file_name, str)
+                    or not file_name.endswith(".json")
+                    or not isinstance(download_url, str)
+                ):
+                    continue
+
+                project_id = file_name[: -len(".json")]
+                normalized_project_name = canonical_project_name(project_id)
+                if normalized_project_name not in registry:
+                    continue
+
+                project_r = requests.get(download_url, timeout=30)
+                project_r.raise_for_status()
+                project_data = project_r.json()
+
+                project_label = project_data.get("label")
+                if isinstance(project_label, str) and project_label.strip():
+                    registry_names[normalized_project_name] = project_label
+
+        return (
+            {k: sorted(v) for k, v in registry.items()},
+            dict(registry_names),
+        )
+    except Exception as e:
+        print("ERROR extract_eternl_registry():", e)
         raise
 
 
