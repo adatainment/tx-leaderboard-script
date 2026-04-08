@@ -218,10 +218,11 @@ def extract_registry(registry_url, registry_id: Literal["CRFA", "STRICA"]):
             match registry_id:
                 case "CRFA":
                     scriptHashes = {
-                        script_version.get("scriptHash")
+                        script_version.get(field)
                         for script in dapp_data.get("scripts", [])
                         for script_version in script.get("versions", [])
-                        if script_version.get("scriptHash")
+                        for field in ("scriptHash", "mintPolicyID")
+                        if script_version.get(field)
                     }
                 case "STRICA":
                     scriptHashes = {
