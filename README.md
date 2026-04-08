@@ -6,7 +6,10 @@ A small utility that compiles a JSON report about Cardano transaction metadata u
 
 - Cardano chain data available through the database (epoch boundaries, transactions, metadata, outputs); all SQL lives in `sql/`.
 - [CIP-0010](https://github.com/cardano-foundation/CIPs/blob/master/CIP-0010/registry.json) registry (`cip10_registry.json` cache under `data/`).
-- Contract/script registries from [CRFA](https://github.com/mezuny/crfa-offchain-data-registry/tree/main/dApps_v2) and [Strica](https://github.com/StricaHQ/cardano-contracts-registry/tree/master/projects) for mapping validator script hashes to project names; the script merges both, preferring Strica names.
+- Contract/script registries from [CRFA](https://github.com/mezuny/crfa-offchain-data-registry/tree/main/dApps_v2), [Strica](https://github.com/StricaHQ/cardano-contracts-registry/tree/master/projects), and [Eternl](https://github.com/Tastenkunst/eternl-cardano-registry/tree/main/registry/scripts) for mapping validator script hashes to project names.
+- Eternl ingestion uses:
+  - [`registry/scripts/script-index.json`](https://github.com/Tastenkunst/eternl-cardano-registry/blob/main/registry/scripts/script-index.json) as the script-hash source (`scripts` object keys grouped by `projectId`).
+  - [`registry/projects/*.json`](https://github.com/Tastenkunst/eternl-cardano-registry/tree/main/registry/projects) to resolve project display names (from each file's `label`, with `projectId` fallback).
 
 ## Configuration
 
