@@ -68,7 +68,7 @@ The `appStats` section ranks projects by the number of transactions seen on thei
 ## SQL reference
 
 - `sql/current_epoch.sql` – derives the rolling epoch window boundaries.
-- `sql/validator_tx_counts.sql` – counts distinct transactions hitting known validator payment credentials.
+- `sql/validator_tx_counts.sql` – counts distinct transactions per known script hash by combining output payment credential matches and mint policy matches.
 - `sql/label_counts.sql` – counts distinct transactions per metadata label.
 - `sql/total_tx_count.sql` – total distinct transactions in the reporting window.
 - `sql/674_messages.sql` – helper query to inspect individual label 674 `msg` entries (currently unused).
