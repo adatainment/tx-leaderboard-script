@@ -339,18 +339,30 @@ def get_registries_stats(window_start, window_end):
                 if project_key:
                     counts_by_project[project_key] += int(tx_count)
 
-    items = []
+    grouped_items: dict[str, dict[str, str | int]] = {}
     for project_key, cnt in counts_by_project.items():
         if cnt <= 0:
             continue
 
-        items.append(
-            {
-                "label": project_key.replace(" ", "-"),
-                "displayName": names.get(project_key, project_key),
-                "txCount": int(cnt),
+        display_name = names.get(project_key, project_key)
+        merge_key = canon_name(display_name).replace(" ", "")
+        if not merge_key:
+            merge_key = canon_name(project_key).replace(" ", "")
+        if not merge_key:
+            merge_key = project_key
+
+        entry = grouped_items.get(merge_key)
+        if not entry:
+            entry = {
+                "label": canonical_project_name(display_name).replace(" ", "-"),
+                "displayName": display_name,
+                "txCount": 0,
             }
-        )
+            grouped_items[merge_key] = entry
+
+        entry["txCount"] = int(entry["txCount"]) + int(cnt)
+
+    items = list(grouped_items.values())
 
     items.sort(key=lambda x: (-x["txCount"], x["label"]))
     for i, item in enumerate(items, start=1):
