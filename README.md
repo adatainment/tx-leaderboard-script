@@ -37,6 +37,11 @@ python run.py
 
 ## Output
 
+Each run emits two reports with the same structure but different reporting windows:
+
+- `data/report.json` – ~6 epochs (≈30 days).
+- `data/report-73epochs.json` – ~73 epochs (≈365 days).
+
 `data/report.json` contains:
 
 ```

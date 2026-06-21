@@ -13,7 +13,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Approx. length of a Cardano epoch, used only for the human-readable label.
+EPOCH_LENGTH_DAYS = 5
+
+# Default window used by helpers and external callers (e.g. the CI epoch probe).
 REPORTING_WINDOW_EPOCHS = 6
+
+# Reporting windows to generate. Each entry produces its own report file.
+#   6 epochs  -> ~30 days  (monthly)
+#   73 epochs -> ~365 days (yearly)
+REPORTING_WINDOWS = {
+    "report.json": 6,
+    "report-73epochs.json": 73,
+}
 
 BASE_DIR = Path(__file__).parent
 SQL_DIR = BASE_DIR / "sql"
@@ -103,11 +115,11 @@ def load_sql(filename):
     return path.read_text(encoding="utf-8")
 
 
-def get_epoch_window():
+def get_epoch_window(window_epochs: int = REPORTING_WINDOW_EPOCHS):
     sql = load_sql("current_epoch.sql")
     with psycopg.connect(**conninfo) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, {"window_epochs": REPORTING_WINDOW_EPOCHS})
+            cur.execute(sql, {"window_epochs": window_epochs})
             row = cur.fetchone()
 
     return {
@@ -115,6 +127,7 @@ def get_epoch_window():
         "last_completed_epoch": row[1],
         "window_start": row[2],
         "window_end": row[3],
+        "window_epochs": window_epochs,
     }
 
 
@@ -481,6 +494,8 @@ def get_total_tx_count(window_start, window_end):
 
 
 def build_metadata(epoch_info, total_tx_count):
+    window_epochs = epoch_info["window_epochs"]
+    approx_days = window_epochs * EPOCH_LENGTH_DAYS
 
     return {
         "generated": datetime.now(timezone.utc).date().isoformat(),
@@ -490,7 +505,7 @@ def build_metadata(epoch_info, total_tx_count):
             "start": epoch_info["window_start"].isoformat(),
             "end": epoch_info["window_end"].isoformat(),
         },
-        "epochs": "~6 epochs (30 days)",
+        "epochs": f"~{window_epochs} epochs ({approx_days} days)",
         "totalTxCount": total_tx_count,
     }
 
@@ -528,8 +543,10 @@ def main():
     check_db()
     os.makedirs("data", exist_ok=True)
 
-    epoch_info = get_epoch_window()
-    last_completed_epoch = epoch_info["last_completed_epoch"]
+    # last_completed_epoch is the same regardless of window length, so the
+    # skip check can rely on the default window.
+    base_window = get_epoch_window()
+    last_completed_epoch = base_window["last_completed_epoch"]
 
     last_pr_epoch = get_last_pr_epoch()
     print(last_pr_epoch, last_completed_epoch)
@@ -538,14 +555,23 @@ def main():
         print(f"[skip] PR already created for epoch {last_completed_epoch}")
         return
 
-    report = build_report(epoch_info)
-    out_path = BASE_DIR / "data" / "report.json"
-    out_path.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    for filename, window_epochs in REPORTING_WINDOWS.items():
+        epoch_info = (
+            base_window
+            if window_epochs == base_window["window_epochs"]
+            else get_epoch_window(window_epochs)
+        )
+        report = build_report(epoch_info)
+        out_path = BASE_DIR / "data" / filename
+        out_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(
+            f"[ok] {filename} generated ({window_epochs} epochs) "
+            f"for epoch {last_completed_epoch}"
+        )
 
     save_last_pr_epoch(last_completed_epoch)
-    print(f"[ok] Report generated for epoch {last_completed_epoch}")
 
 
 if __name__ == "__main__":
