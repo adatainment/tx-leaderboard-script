@@ -132,6 +132,74 @@ def build_prefilter_patterns(allowlist):
     return patterns
 
 
+def message_texts_from_json(metadata_json):
+    # Mirrors the SQL LATERAL: a string msg yields one text, an array msg
+    # yields each element as text. Anything else yields nothing.
+    if not isinstance(metadata_json, dict):
+        return []
+    msg = metadata_json.get("msg")
+    if isinstance(msg, str):
+        return [msg]
+    if isinstance(msg, list):
+        return [str(x) for x in msg]
+    return []
+
+
+def compile_allowlist(allowlist):
+    compiled = []
+    for app in allowlist:
+        norm_patterns = []
+        for m in app.get("match", []):
+            if isinstance(m, str) and m.strip():
+                n = normalize_msg(m)
+                if n:
+                    norm_patterns.append(n)
+        compiled.append(
+            {
+                "label": app["label"],
+                "displayName": app.get("displayName", app["label"]),
+                "matchType": app.get("matchType", "substring"),
+                "patterns": norm_patterns,
+            }
+        )
+    return compiled
+
+
+def count_cip20_app_txs(rows, allowlist):
+    compiled = compile_allowlist(allowlist)
+    app_txs = {c["label"]: set() for c in compiled}
+
+    for tx_id, metadata_json in rows:
+        for text in message_texts_from_json(metadata_json):
+            norm = normalize_msg(text)
+            if not norm:
+                continue
+            for c in compiled:
+                matched = False
+                for pat in c["patterns"]:
+                    if c["matchType"] == "exact":
+                        matched = norm == pat
+                    else:
+                        matched = pat in norm
+                    if matched:
+                        break
+                if matched:
+                    app_txs[c["label"]].add(tx_id)
+
+    items = []
+    for c in compiled:
+        cnt = len(app_txs[c["label"]])
+        if cnt > 0:
+            items.append(
+                {
+                    "label": c["label"],
+                    "displayName": c["displayName"],
+                    "txCount": cnt,
+                }
+            )
+    return items
+
+
 def load_sql(filename):
     path = SQL_DIR / filename
     return path.read_text(encoding="utf-8")
