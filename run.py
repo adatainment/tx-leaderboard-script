@@ -30,6 +30,7 @@ REPORTING_WINDOWS = {
 BASE_DIR = Path(__file__).parent
 SQL_DIR = BASE_DIR / "sql"
 CACHE_DIR = BASE_DIR / "data"
+CIP20_APPS_FILE = CACHE_DIR / "cip20_apps.json"
 
 LAST_EPOCH_FILE = BASE_DIR / "data" / "last_pr_epoch.txt"
 
@@ -108,6 +109,27 @@ def normalize_msg(msg: str) -> str:
     msg = non_alnum.sub(" ", msg)
     msg = " ".join(msg.split())
     return msg.strip()
+
+
+def load_cip20_allowlist(path=CIP20_APPS_FILE):
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        return []
+    return data
+
+
+def build_prefilter_patterns(allowlist):
+    # Coarse SQL prefilter: only rows whose raw metadata json contains one of
+    # these substrings are pulled. Precise matching happens in Python against
+    # the normalized message.
+    patterns = []
+    for app in allowlist:
+        for m in app.get("match", []):
+            if isinstance(m, str) and m.strip():
+                patterns.append(f"%{m}%")
+    return patterns
 
 
 def load_sql(filename):
