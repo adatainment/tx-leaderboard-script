@@ -200,6 +200,31 @@ def count_cip20_app_txs(rows, allowlist):
     return items
 
 
+def get_cip20_app_stats(window_start, window_end):
+    allowlist = load_cip20_allowlist()
+    if not allowlist:
+        return []
+
+    patterns = build_prefilter_patterns(allowlist)
+    if not patterns:
+        return []
+
+    sql = load_sql("674_messages.sql")
+    with psycopg.connect(**conninfo) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql,  # type: ignore[arg-type]
+                {
+                    "start_time": window_start,
+                    "end_time": window_end,
+                    "patterns": patterns,
+                },
+            )
+            rows = cur.fetchall()
+
+    return count_cip20_app_txs(rows, allowlist)
+
+
 def load_sql(filename):
     path = SQL_DIR / filename
     return path.read_text(encoding="utf-8")
@@ -524,47 +549,6 @@ def get_metadata_label_stats(window_start, window_end):
         item["rank"] = i
 
     return items
-
-
-# def get_674_message_frequency_stats():
-#     sql = load_sql("674_messages.sql")
-#     counts = Counter()
-#     tx_seen = defaultdict(set)
-#     total_tx_with_msg = set()
-#
-#     with psycopg.connect(**conninfo) as conn:
-#         with conn.cursor() as cur:
-#             cur.execute(sql, {"window_days": REPORTING_WINDOW_DAYS})  # type: ignore[arg-type]
-#             for tx_id, raw_msg in cur.fetchall():
-#                 if raw_msg is None:
-#                     continue
-#                 total_tx_with_msg.add(tx_id)
-#
-#                 norm = normalize_msg(str(raw_msg))
-#                 if not norm:
-#                     continue
-#
-#                 key = norm
-#
-#                 if key in tx_seen[tx_id]:
-#                     continue
-#                 tx_seen[tx_id].add(key)
-#
-#                 counts[key] += 1
-#
-#     frequent = [
-#         (k, v) for k, v in counts.most_common() if v >= MIN_TX_THRESHOLD
-#     ]
-#     frequent = frequent[:MAX_GROUPS]
-#
-#     frequent_set = {k for k, _ in frequent}
-#     other_tx_count = sum(v for k, v in counts.items() if k not in frequent_set)
-#
-#     return {
-#         "totalTxWithMsg": len(total_tx_with_msg),
-#         "groups": [{"message": k, "txCount": v} for k, v in frequent],
-#         "otherTxCount": other_tx_count,
-#     }
 
 
 def get_total_tx_count(window_start, window_end):
