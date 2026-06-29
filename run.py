@@ -473,11 +473,7 @@ def get_registries_stats(window_start, window_end):
             continue
 
         display_name = names.get(project_key, project_key)
-        merge_key = canon_name(display_name).replace(" ", "")
-        if not merge_key:
-            merge_key = canon_name(project_key).replace(" ", "")
-        if not merge_key:
-            merge_key = project_key
+        merge_key = app_merge_key(display_name, project_key)
 
         entry = grouped_items.get(merge_key)
         if not entry:
@@ -490,12 +486,38 @@ def get_registries_stats(window_start, window_end):
 
         entry["txCount"] = int(entry["txCount"]) + int(cnt)
 
-    items = list(grouped_items.values())
+    # Ranking happens in combine_app_stats after merging with cip20 stats.
+    return list(grouped_items.values())
 
+
+def app_merge_key(display_name, fallback):
+    key = canon_name(display_name).replace(" ", "")
+    if not key:
+        key = canon_name(fallback).replace(" ", "")
+    if not key:
+        key = fallback
+    return key
+
+
+def combine_app_stats(*item_lists):
+    grouped: dict[str, dict[str, str | int]] = {}
+    for items in item_lists:
+        for entry in items:
+            key = app_merge_key(entry["displayName"], entry["label"])
+            existing = grouped.get(key)
+            if existing is None:
+                grouped[key] = {
+                    "label": entry["label"],
+                    "displayName": entry["displayName"],
+                    "txCount": int(entry["txCount"]),
+                }
+            else:
+                existing["txCount"] = int(existing["txCount"]) + int(entry["txCount"])
+
+    items = list(grouped.values())
     items.sort(key=lambda x: (-x["txCount"], x["label"]))
     for i, item in enumerate(items, start=1):
         item["rank"] = i
-
     return items
 
 
@@ -591,10 +613,17 @@ def build_report(epoch_info):
         epoch_info["window_end"],
     )
 
-    app_stats = get_registries_stats(
+    script_hash_stats = get_registries_stats(
         epoch_info["window_start"],
         epoch_info["window_end"],
     )
+
+    cip20_stats = get_cip20_app_stats(
+        epoch_info["window_start"],
+        epoch_info["window_end"],
+    )
+
+    app_stats = combine_app_stats(script_hash_stats, cip20_stats)
 
     label_stats = get_metadata_label_stats(
         epoch_info["window_start"],
