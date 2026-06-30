@@ -30,13 +30,16 @@ Each entry looks like:
 
 - `label`: a stable identifier (lowercase, often your domain). Used as the appStats label.
 - `displayName`: the name shown on the leaderboard.
-- `match`: one or more patterns to look for. Matching runs against a normalized form of
-  the message: lowercased, accents stripped, and every run of punctuation collapsed to a
-  single space. So a dotted domain like `unfrack.it` should be given as `unfrack` or
-  `unfrack it`, not `unfrack.it`.
-- `matchType`: `substring` matches the pattern anywhere in the message (use this when you
-  prefix a stable tag, e.g. messages like `[adalink] ...`). `exact` requires the whole
-  normalized message to equal the pattern (use this when you emit a single fixed tag).
+- `match`: one or more patterns to look for in the transaction message. A pattern must
+  appear verbatim in the message exactly as your app writes it on chain; matching is
+  case-insensitive but otherwise literal, so include any punctuation the message
+  contains. For example unfrack.it tags its transactions with `https://unfrack.it`, so
+  `unfrack` or `unfrack.it` both work, but `unfrack it` (punctuation rewritten as a
+  space) does not match and your app would count zero.
+- `matchType`: `substring` matches when the pattern appears anywhere in the message (use
+  this when you prefix a stable tag, e.g. messages like `[adalink] ...`, with pattern
+  `adalink` or `[adalink]`). `exact` matches when the whole message equals the pattern,
+  ignoring case (use this when you emit a single fixed tag).
 
 Pick a pattern distinctive to your app, such as a project tag or your domain. Do not use
 a generic word like `cardano` or `swap`; it would falsely match unrelated transactions
